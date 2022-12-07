@@ -5,20 +5,101 @@ output: html_notebook
 
 # Load libraries
 ```{r}
+# Plotting
+library(tidyverse)
+#library(RColorBrewer)
+library(ggtext)
+library(cowplot)
+
+# Stats
+library(phyloseq)
+library(lme4)
+library(lmerTest)
+library(vegan)
+library(ALDEx2)
+
+theme_set(theme_bw() +
+            theme(axis.text = element_text(color = "black"),
+                  axis.ticks = element_line(color = "black"),
+                  plot.title = element_text(hjust = 0.5)))
+
+set.seed(123)
+
 
 ```
 
-# Load data 
+# Load and clean up data 
+```{r}
+# pH and redox with clinical data
+## See data/variable_descriptions_for_fecal_pH_final.xlsx for explanations of variables
+pH_redox <- read.csv("data/fecal_pH_final.csv")
+
+# SCFA data by GC
+## Isobutyrate, isovalerate, and valerate were not detected for any samples
+## Two samples have been omitted where nothing was detected
+## All values have been multiplied by 10 (dilution factor) and are in mM
+## Where values were NA/0, they have been replaced with a pseudocount equal to the lowest value observed for that SCFA
+gc <- read.csv("data/nicu_gc_cleaned.csv")
+
+# Combine
+pH_redox <- pH_redox %>%
+  left_join(gc) %>%
+  relocate(acetate:total, .after = redox)
+
+
+```
+
+## 16S
+```{r}
+# Load phyloseq object, omitting samples with < 5000 reads
+## This version used to calculate diversity
+ps <- readRDS("data/phyloseq.rds") %>%
+  prune_samples(sample_sums(.) >= 5000, .)
+# 95 taxa by 77 samples (none removed by filter)
+
+# Omit low abundance taxa for differential abundance analysis
+ps_filt <- ps %>%
+  filter_taxa(function(x) sum(x > 3) > 0.1*length(x), TRUE)
+# Reduces to 23 taxa (wow!)
+
+```
+
+
+
+# pH and redox
+## Analyze pH in context of clinical data
 ```{r}
 
 ```
 
-# Analyze pH in context of clinical data
+## Analyze redox in context of clinical data
 ```{r}
 
 ```
 
-# Analyze redox in context of clinical data
+# SCFA
+## Analyze SCFA data in context of clinical data
 ```{r}
 
 ```
+
+## Assess relationship between SCFA and pH/redox
+```{r}
+
+```
+
+# 16S
+## Analyze 16S data in context of clinical data
+```{r}
+# Diversity
+
+# NMDS
+
+
+```
+
+## Assess relationship between 16S and pH/redox
+```{r}
+
+```
+

@@ -1762,31 +1762,123 @@ display: none;
 <h1>Load libraries</h1>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuIyBQbG90dGluZ1xubGlicmFyeSh0aWR5dmVyc2UpXG4jbGlicmFyeShSQ29sb3JCcmV3ZXIpXG5saWJyYXJ5KGdndGV4dClcbmxpYnJhcnkoY293cGxvdClcblxuIyBTdGF0c1xubGlicmFyeShwaHlsb3NlcSlcbmxpYnJhcnkobG1lNClcbmxpYnJhcnkobG1lclRlc3QpXG5saWJyYXJ5KHZlZ2FuKVxubGlicmFyeShBTERFeDIpXG5cbnRoZW1lX3NldCh0aGVtZV9idygpICtcbiAgICAgICAgICAgIHRoZW1lKGF4aXMudGV4dCA9IGVsZW1lbnRfdGV4dChjb2xvciA9IFwiYmxhY2tcIiksXG4gICAgICAgICAgICAgICAgICBheGlzLnRpY2tzID0gZWxlbWVudF9saW5lKGNvbG9yID0gXCJibGFja1wiKSxcbiAgICAgICAgICAgICAgICAgIHBsb3QudGl0bGUgPSBlbGVtZW50X3RleHQoaGp1c3QgPSAwLjUpKSlcblxuc2V0LnNlZWQoMTIzKVxuXG5cbmBgYCJ9 -->
+<pre class="r"><code># Plotting
+library(tidyverse)
+#library(RColorBrewer)
+library(ggtext)
+library(cowplot)
+
+# Stats
+library(phyloseq)
+library(lme4)
+library(lmerTest)
+library(vegan)
+library(ALDEx2)
+
+theme_set(theme_bw() +
+            theme(axis.text = element_text(color = &quot;black&quot;),
+                  axis.ticks = element_line(color = &quot;black&quot;),
+                  plot.title = element_text(hjust = 0.5)))
+
+set.seed(123)
+</code></pre>
+<!-- rnb-source-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
 </div>
-<div id="load-data" class="section level1">
-<h1>Load data</h1>
+<div id="load-and-clean-up-data" class="section level1">
+<h1>Load and clean up data</h1>
+<!-- rnb-text-end -->
+<!-- rnb-chunk-begin -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuIyBwSCBhbmQgcmVkb3ggd2l0aCBjbGluaWNhbCBkYXRhXG4jIyBTZWUgZGF0YS92YXJpYWJsZV9kZXNjcmlwdGlvbnNfZm9yX2ZlY2FsX3BIX2ZpbmFsLnhsc3ggZm9yIGV4cGxhbmF0aW9ucyBvZiB2YXJpYWJsZXNcbnBIX3JlZG94IDwtIHJlYWQuY3N2KFwiZGF0YS9mZWNhbF9wSF9maW5hbC5jc3ZcIilcblxuIyBTQ0ZBIGRhdGEgYnkgR0NcbiMjIElzb2J1dHlyYXRlLCBpc292YWxlcmF0ZSwgYW5kIHZhbGVyYXRlIHdlcmUgbm90IGRldGVjdGVkIGZvciBhbnkgc2FtcGxlc1xuIyMgVHdvIHNhbXBsZXMgaGF2ZSBiZWVuIG9taXR0ZWQgd2hlcmUgbm90aGluZyB3YXMgZGV0ZWN0ZWRcbiMjIEFsbCB2YWx1ZXMgaGF2ZSBiZWVuIG11bHRpcGxpZWQgYnkgMTAgKGRpbHV0aW9uIGZhY3RvcikgYW5kIGFyZSBpbiBtTVxuIyMgV2hlcmUgdmFsdWVzIHdlcmUgTkEvMCwgdGhleSBoYXZlIGJlZW4gcmVwbGFjZWQgd2l0aCBhIHBzZXVkb2NvdW50IGVxdWFsIHRvIHRoZSBsb3dlc3QgdmFsdWUgb2JzZXJ2ZWQgZm9yIHRoYXQgU0NGQVxuZ2MgPC0gcmVhZC5jc3YoXCJkYXRhL25pY3VfZ2NfY2xlYW5lZC5jc3ZcIilcblxuIyBDb21iaW5lXG5wSF9yZWRveCA8LSBwSF9yZWRveCAlPiVcbiAgbGVmdF9qb2luKGdjKSAlPiVcbiAgcmVsb2NhdGUoYWNldGF0ZTp0b3RhbCwgLmFmdGVyID0gcmVkb3gpXG5cblxuYGBgIn0= -->
+<pre class="r"><code># pH and redox with clinical data
+## See data/variable_descriptions_for_fecal_pH_final.xlsx for explanations of variables
+pH_redox &lt;- read.csv(&quot;data/fecal_pH_final.csv&quot;)
+
+# SCFA data by GC
+## Isobutyrate, isovalerate, and valerate were not detected for any samples
+## Two samples have been omitted where nothing was detected
+## All values have been multiplied by 10 (dilution factor) and are in mM
+## Where values were NA/0, they have been replaced with a pseudocount equal to the lowest value observed for that SCFA
+gc &lt;- read.csv(&quot;data/nicu_gc_cleaned.csv&quot;)
+
+# Combine
+pH_redox &lt;- pH_redox %&gt;%
+  left_join(gc) %&gt;%
+  relocate(acetate:total, .after = redox)
+</code></pre>
+<!-- rnb-source-end -->
+<!-- rnb-chunk-end -->
+<!-- rnb-text-begin -->
+<div id="s" class="section level2">
+<h2>16S</h2>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
 </div>
-<div id="analyze-ph-in-context-of-clinical-data" class="section level1">
-<h1>Analyze pH in context of clinical data</h1>
+</div>
+<div id="ph-and-redox" class="section level1">
+<h1>pH and redox</h1>
+<div id="analyze-ph-in-context-of-clinical-data" class="section level2">
+<h2>Analyze pH in context of clinical data</h2>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
 </div>
-<div id="analyze-redox-in-context-of-clinical-data" class="section level1">
-<h1>Analyze redox in context of clinical data</h1>
+<div id="analyze-redox-in-context-of-clinical-data" class="section level2">
+<h2>Analyze redox in context of clinical data</h2>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
 <!-- rnb-chunk-end -->
+<!-- rnb-text-begin -->
+</div>
+</div>
+<div id="scfa" class="section level1">
+<h1>SCFA</h1>
+<div id="analyze-scfa-data-in-context-of-clinical-data" class="section level2">
+<h2>Analyze SCFA data in context of clinical data</h2>
+<!-- rnb-text-end -->
+<!-- rnb-chunk-begin -->
+<!-- rnb-chunk-end -->
+<!-- rnb-text-begin -->
+</div>
+<div id="assess-relationship-between-scfa-and-phredox" class="section level2">
+<h2>Assess relationship between SCFA and pH/redox</h2>
+<!-- rnb-text-end -->
+<!-- rnb-chunk-begin -->
+<!-- rnb-chunk-end -->
+<!-- rnb-text-begin -->
+</div>
+</div>
+<div id="s-1" class="section level1">
+<h1>16S</h1>
+<div id="analyze-16s-data-in-context-of-clinical-data" class="section level2">
+<h2>Analyze 16S data in context of clinical data</h2>
+<!-- rnb-text-end -->
+<!-- rnb-chunk-begin -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuIyBEaXZlcnNpdHlcblxuIyBOTURTXG5cblxuYGBgIn0= -->
+<pre class="r"><code># Diversity
+
+# NMDS
+</code></pre>
+<!-- rnb-source-end -->
+<!-- rnb-chunk-end -->
+<!-- rnb-text-begin -->
+</div>
+<div id="assess-relationship-between-16s-and-phredox" class="section level2">
+<h2>Assess relationship between 16S and pH/redox</h2>
+<!-- rnb-text-end -->
+<!-- rnb-chunk-begin -->
+<!-- rnb-chunk-end -->
+<!-- rnb-text-begin -->
+<!-- rnb-text-end -->
+</div>
 </div>
 
-<div id="rmd-source-code">LS0tDQp0aXRsZTogIkluZmFudCBmZWNhbCBwSC9yZWRveCBhbmFseXNpcyINCm91dHB1dDogaHRtbF9ub3RlYm9vaw0KLS0tDQoNCiMgTG9hZCBsaWJyYXJpZXMNCmBgYHtyfQ0KDQpgYGANCg0KIyBMb2FkIGRhdGEgDQpgYGB7cn0NCg0KYGBgDQoNCiMgQW5hbHl6ZSBwSCBpbiBjb250ZXh0IG9mIGNsaW5pY2FsIGRhdGENCmBgYHtyfQ0KDQpgYGANCg0KIyBBbmFseXplIHJlZG94IGluIGNvbnRleHQgb2YgY2xpbmljYWwgZGF0YQ0KYGBge3J9DQoNCmBgYA0K</div>
+<div id="rmd-source-code">LS0tDQp0aXRsZTogIkluZmFudCBmZWNhbCBwSC9yZWRveCBhbmFseXNpcyINCm91dHB1dDogaHRtbF9ub3RlYm9vaw0KLS0tDQoNCiMgTG9hZCBsaWJyYXJpZXMNCmBgYHtyfQ0KIyBQbG90dGluZw0KbGlicmFyeSh0aWR5dmVyc2UpDQojbGlicmFyeShSQ29sb3JCcmV3ZXIpDQpsaWJyYXJ5KGdndGV4dCkNCmxpYnJhcnkoY293cGxvdCkNCg0KIyBTdGF0cw0KbGlicmFyeShwaHlsb3NlcSkNCmxpYnJhcnkobG1lNCkNCmxpYnJhcnkobG1lclRlc3QpDQpsaWJyYXJ5KHZlZ2FuKQ0KbGlicmFyeShBTERFeDIpDQoNCnRoZW1lX3NldCh0aGVtZV9idygpICsNCiAgICAgICAgICAgIHRoZW1lKGF4aXMudGV4dCA9IGVsZW1lbnRfdGV4dChjb2xvciA9ICJibGFjayIpLA0KICAgICAgICAgICAgICAgICAgYXhpcy50aWNrcyA9IGVsZW1lbnRfbGluZShjb2xvciA9ICJibGFjayIpLA0KICAgICAgICAgICAgICAgICAgcGxvdC50aXRsZSA9IGVsZW1lbnRfdGV4dChoanVzdCA9IDAuNSkpKQ0KDQpzZXQuc2VlZCgxMjMpDQoNCg0KYGBgDQoNCiMgTG9hZCBhbmQgY2xlYW4gdXAgZGF0YSANCmBgYHtyfQ0KIyBwSCBhbmQgcmVkb3ggd2l0aCBjbGluaWNhbCBkYXRhDQojIyBTZWUgZGF0YS92YXJpYWJsZV9kZXNjcmlwdGlvbnNfZm9yX2ZlY2FsX3BIX2ZpbmFsLnhsc3ggZm9yIGV4cGxhbmF0aW9ucyBvZiB2YXJpYWJsZXMNCnBIX3JlZG94IDwtIHJlYWQuY3N2KCJkYXRhL2ZlY2FsX3BIX2ZpbmFsLmNzdiIpDQoNCiMgU0NGQSBkYXRhIGJ5IEdDDQojIyBJc29idXR5cmF0ZSwgaXNvdmFsZXJhdGUsIGFuZCB2YWxlcmF0ZSB3ZXJlIG5vdCBkZXRlY3RlZCBmb3IgYW55IHNhbXBsZXMNCiMjIFR3byBzYW1wbGVzIGhhdmUgYmVlbiBvbWl0dGVkIHdoZXJlIG5vdGhpbmcgd2FzIGRldGVjdGVkDQojIyBBbGwgdmFsdWVzIGhhdmUgYmVlbiBtdWx0aXBsaWVkIGJ5IDEwIChkaWx1dGlvbiBmYWN0b3IpIGFuZCBhcmUgaW4gbU0NCiMjIFdoZXJlIHZhbHVlcyB3ZXJlIE5BLzAsIHRoZXkgaGF2ZSBiZWVuIHJlcGxhY2VkIHdpdGggYSBwc2V1ZG9jb3VudCBlcXVhbCB0byB0aGUgbG93ZXN0IHZhbHVlIG9ic2VydmVkIGZvciB0aGF0IFNDRkENCmdjIDwtIHJlYWQuY3N2KCJkYXRhL25pY3VfZ2NfY2xlYW5lZC5jc3YiKQ0KDQojIENvbWJpbmUNCnBIX3JlZG94IDwtIHBIX3JlZG94ICU+JQ0KICBsZWZ0X2pvaW4oZ2MpICU+JQ0KICByZWxvY2F0ZShhY2V0YXRlOnRvdGFsLCAuYWZ0ZXIgPSByZWRveCkNCg0KDQpgYGANCg0KIyMgMTZTDQpgYGB7cn0NCiMgTG9hZCBwaHlsb3NlcSBvYmplY3QsIG9taXR0aW5nIHNhbXBsZXMgd2l0aCA8IDUwMDAgcmVhZHMNCiMjIFRoaXMgdmVyc2lvbiB1c2VkIHRvIGNhbGN1bGF0ZSBkaXZlcnNpdHkNCnBzIDwtIHJlYWRSRFMoImRhdGEvcGh5bG9zZXEucmRzIikgJT4lDQogIHBydW5lX3NhbXBsZXMoc2FtcGxlX3N1bXMoLikgPj0gNTAwMCwgLikNCiMgOTUgdGF4YSBieSA3NyBzYW1wbGVzIChub25lIHJlbW92ZWQgYnkgZmlsdGVyKQ0KDQojIE9taXQgbG93IGFidW5kYW5jZSB0YXhhIGZvciBkaWZmZXJlbnRpYWwgYWJ1bmRhbmNlIGFuYWx5c2lzDQpwc19maWx0IDwtIHBzICU+JQ0KICBmaWx0ZXJfdGF4YShmdW5jdGlvbih4KSBzdW0oeCA+IDMpID4gMC4xKmxlbmd0aCh4KSwgVFJVRSkNCiMgUmVkdWNlcyB0byAyMyB0YXhhICh3b3chKQ0KDQpgYGANCg0KDQoNCiMgcEggYW5kIHJlZG94DQojIyBBbmFseXplIHBIIGluIGNvbnRleHQgb2YgY2xpbmljYWwgZGF0YQ0KYGBge3J9DQoNCmBgYA0KDQojIyBBbmFseXplIHJlZG94IGluIGNvbnRleHQgb2YgY2xpbmljYWwgZGF0YQ0KYGBge3J9DQoNCmBgYA0KDQojIFNDRkENCiMjIEFuYWx5emUgU0NGQSBkYXRhIGluIGNvbnRleHQgb2YgY2xpbmljYWwgZGF0YQ0KYGBge3J9DQoNCmBgYA0KDQojIyBBc3Nlc3MgcmVsYXRpb25zaGlwIGJldHdlZW4gU0NGQSBhbmQgcEgvcmVkb3gNCmBgYHtyfQ0KDQpgYGANCg0KIyAxNlMNCiMjIEFuYWx5emUgMTZTIGRhdGEgaW4gY29udGV4dCBvZiBjbGluaWNhbCBkYXRhDQpgYGB7cn0NCiMgRGl2ZXJzaXR5DQoNCiMgTk1EUw0KDQoNCmBgYA0KDQojIyBBc3Nlc3MgcmVsYXRpb25zaGlwIGJldHdlZW4gMTZTIGFuZCBwSC9yZWRveA0KYGBge3J9DQoNCmBgYA0KDQo=</div>
 
 
 
