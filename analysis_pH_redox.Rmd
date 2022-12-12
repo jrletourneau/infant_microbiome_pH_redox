@@ -94,7 +94,7 @@ pH_BGA_plot <- ggplot(pH_redox, aes(x = BGA, y = pH, color = Subject)) +
                                              ymax = mean_pH + se_pH, color = Subject),
                 width = 0.25, inherit.aes = F) +
   labs(x = "Birth gestational age (weeks)", y = "Fecal pH", color = "Participant") +
-  geom_textbox(data = data.frame(x=33, y = 7, label = "LMM<br>*p* = 0.016"),
+  geom_textbox(data = data.frame(x=33, y = 7, label = "Linear mixed model<br>pH ~ BGA + (1 | Subject)<br>BGA *p* = 0.016"),
                aes(x, y, label = label), halign = 0.5, fill = NA, box.colour = NA,
                box.padding = grid::unit(rep(0, 4), "pt"), inherit.aes = F)
 
@@ -106,7 +106,7 @@ pH_bw_plot <- ggplot(pH_redox, aes(x = bw, y = pH, color = Subject)) +
                                              ymax = mean_pH + se_pH, color = Subject),
                 width = 20, inherit.aes = F) +
   labs(x = "Birth weight (g)", y = "Fecal pH", color = "Participant") +
-  geom_textbox(data = data.frame(x=1220, y = 7, label = "LMM<br>*p* = 0.0046"),
+  geom_textbox(data = data.frame(x=1220, y = 7, label = "Linear mixed model<br>pH ~ bw + (1 | Subject)<br>bw *p* = 0.0046"),
                aes(x, y, label = label), halign = 0.5, fill = NA, box.colour = NA,
                box.padding = grid::unit(rep(0, 4), "pt"), inherit.aes = F)
 
@@ -128,7 +128,7 @@ redox_BGA_plot <- ggplot(pH_redox, aes(x = BGA, y = redox, color = Subject)) +
                                              ymax = mean_redox + se_redox, color = Subject),
                 width = 0.25, inherit.aes = F) +
   labs(x = "Birth gestational age (weeks)", y = "Fecal redox potential (mV)", color = "Participant") +
-  geom_textbox(data = data.frame(x=33, y = -200, label = "LMM<br>*p* = 0.060"),
+  geom_textbox(data = data.frame(x=32.5, y = -400, label = "Linear mixed model<br>redox ~ BGA + (1 | Subject)<br>BGA *p* = 0.060"),
                aes(x, y, label = label), halign = 0.5, fill = NA, box.colour = NA,
                box.padding = grid::unit(rep(0, 4), "pt"), inherit.aes = F)
 
@@ -140,11 +140,12 @@ redox_bw_plot <- ggplot(pH_redox, aes(x = bw, y = redox, color = Subject)) +
                                              ymax = mean_redox + se_redox, color = Subject),
                 width = 20, inherit.aes = F) +
   labs(x = "Birth weight (g)", y = "Fecal redox potential (mV)", color = "Participant") +
-  geom_textbox(data = data.frame(x=1250, y = -350, label = "LMM<br>*p* = 0.17"),
+  geom_textbox(data = data.frame(x=1225, y = -420, label = "Linear mixed model<br>redox ~ bw + (1 | Subject)<br>bw *p* = 0.17"),
                aes(x, y, label = label), halign = 0.5, fill = NA, box.colour = NA,
                box.padding = grid::unit(rep(0, 4), "pt"), inherit.aes = F)
 
 # Test BGA-bw correlation
+## Doing correlation because I actually only have 11 points here, no longitudinal sampling
 cor.test(pH_redox_summary$BGA, pH_redox_summary$bw, method = "spearman")
 # p = 0.013, rho = 0.71
 
@@ -164,7 +165,7 @@ pH_redox %>%
 pH_redox_plot <- ggplot(pH_redox, aes(x = pH, y = redox, color = Subject)) +
   geom_point() +
   labs(x = "Fecal pH", y = "Fecal redox potential (mV)", color = "Participant") +
-  geom_textbox(data = data.frame(x=6.6, y = -400, label = "LMM<br>*p* = 0.13"),
+  geom_textbox(data = data.frame(x=6.6, y = -400, label = "Linear mixed model<br>redox ~ pH + (1 | Subject)<br>pH *p* = 0.13"),
                aes(x, y, label = label), halign = 0.5, fill = NA, box.colour = NA,
                box.padding = grid::unit(rep(0, 4), "pt"), inherit.aes = F)
 
@@ -183,27 +184,25 @@ pH_redox %>%
 # pH
 ## DOL p = 0.38
 ## Wt p = 0.61
-## curr_Abx p = 0.94
 # redox
 ## DOL p = 0.0045
 ## Wt p = 0.27
-## curr_Abx p = 0.13
 
 redox_DOL_plot <- ggplot(pH_redox, aes(x = DOL, y = redox, color = Subject)) +
   geom_point() +
   geom_line(alpha = 0.4) +
   labs(x = "Age (days)", y = "Fecal redox potential (mV)", color = "Participant") +
-  geom_textbox(data = data.frame(x=18, y = -380, label = "LMM<br>*p* = 0.0045"),
+  geom_textbox(data = data.frame(x = 60, y = -475, label = "Linear mixed model<br>redox ~ bw + DOL + (1 | Subject)<br>DOL *p* = 0.0045"),
                aes(x, y, label = label), halign = 0.5, fill = NA, box.colour = NA,
-               box.padding = grid::unit(rep(0, 4), "pt"), inherit.aes = F)
+               box.padding = grid::unit(rep(0, 4), "pt"), width = unit(3, "inch"), inherit.aes = F)
 
 pH_DOL_plot <- ggplot(pH_redox, aes(x = DOL, y = pH, color = Subject)) +
   geom_point() +
   geom_line(alpha = 0.4) +
   labs(x = "Age (days)", y = "Fecal pH", color = "Participant") +
-  geom_textbox(data = data.frame(x=71, y = 6, label = "LMM<br>*p* = 0.38"),
+  geom_textbox(data = data.frame(x = 64, y = 5.42, label = "Linear mixed model<br>pH ~ bw + DOL + (1 | Subject)<br>DOL *p* = 0.38"),
                aes(x, y, label = label), halign = 0.5, fill = NA, box.colour = NA,
-               box.padding = grid::unit(rep(0, 4), "pt"), inherit.aes = F)
+               box.padding = grid::unit(rep(0, 4), "pt"), width = unit(3, "inch"), inherit.aes = F)
 
 
 ```
@@ -216,34 +215,85 @@ scfa_gather <- pH_redox %>%
   gather(key = scfa, value = conc, acetate:total)
 
 # lmm
-scfa_lmm_results <- data.frame(scfa = rep(unique(scfa_gather$scfa), 5),
-                               var = rep(c("BGA", "bw", "matabx", "pH", "redox"), each = 4),
+scfa_lmm_results <- data.frame(scfa = rep(unique(scfa_gather$scfa), 6),
+                               var = rep(c("BGA", "bw", "pH", "redox", "DOL", "Wt"), each = 4),
                                p = NA)
 
 for(r in 1:nrow(scfa_lmm_results)) {
-  scfa_lmm_results$p[r] <- scfa_gather %>%
-    filter(scfa == scfa_lmm_results$scfa[r]) %>%
-    lmer(conc ~ get(scfa_lmm_results$var[r]) + (1|Subject), data = .) %>%
-    summary() %>%
-    .$coefficients %>%
-    .[2,5]
-}
-# all NS except acetate-pH p = 0.0030 and totalSCFA-pH p = 0.0057
+  
+  # For longitudinal variables (DOL, Wt), control for birth weight
+  if(scfa_lmm_results$var[r] %in% c("DOL", "Wt", "feedintol")) {
+    scfa_lmm_results$p[r] <- scfa_gather %>%
+      filter(scfa == scfa_lmm_results$scfa[r]) %>%
+      lmer(conc ~ bw + get(scfa_lmm_results$var[r]) + (1|Subject), data = .) %>%
+      summary() %>%
+      .$coefficients %>%
+      .[3,5]
+      
+  } else {
+    scfa_lmm_results$p[r] <- scfa_gather %>%
+      filter(scfa == scfa_lmm_results$scfa[r]) %>%
+      lmer(conc ~ get(scfa_lmm_results$var[r]) + (1|Subject), data = .) %>%
+      summary() %>%
+      .$coefficients %>%
+      .[2,5]
+  }
 
+}
+# all NS except:
+## total ~ pH p = 0.0057, and acetate ~ pH p = 0.0030
+## total ~ bw + DOL p = 0.024, and acetate ~ bw + DOL p = 0.029
+## propionate ~ bw + DOL p = 0.031, and propionate ~ bw + Wt p = 0.00047
+
+# Total/ace and pH
+total_pH_plot <- ggplot(pH_redox, aes(x = pH, y = total, color = Subject)) +
+  geom_point() +
+  labs(x = "Fecal pH", y = "Total SCFA concentration (mM)", color = "Participant") +
+  geom_textbox(data = data.frame(x=6.8, y = 120, label = "Linear mixed model<br>total ~ pH + (1 | Subject)<br>pH *p* = 0.0057"),
+               aes(x, y, label = label), halign = 0.5, fill = NA, box.colour = NA,
+               box.padding = grid::unit(rep(0, 4), "pt"), inherit.aes = F)
 
 ace_pH_plot <- ggplot(pH_redox, aes(x = pH, y = acetate, color = Subject)) +
   geom_point() +
   labs(x = "Fecal pH", y = "Acetate concentration (mM)", color = "Participant") +
-  geom_textbox(data = data.frame(x=6.8, y = 120, label = "LMM<br>*p* = 0.0030"),
+  geom_textbox(data = data.frame(x=6.8, y = 120, label = "Linear mixed model<br>acetate ~ pH + (1 | Subject)<br>pH *p* = 0.0030"),
                aes(x, y, label = label), halign = 0.5, fill = NA, box.colour = NA,
                box.padding = grid::unit(rep(0, 4), "pt"), inherit.aes = F)
   
+# Total/ace and DOL
+total_DOL_plot <- ggplot(pH_redox, aes(x = DOL, y = total, color = Subject)) +
+  geom_point() +
+  geom_line(alpha = 0.4) +
+  labs(x = "Age (days)", y = "Total SCFA concentration (mM)", color = "Participant") +
+  geom_textbox(data = data.frame(x = 60, y = 175, label = "Linear mixed model<br>total ~ bw + DOL + (1 | Subject)<br>DOL *p* = 0.024"),
+               aes(x, y, label = label), halign = 0.5, fill = NA, box.colour = NA,
+               box.padding = grid::unit(rep(0, 4), "pt"), width = unit(3, "inch"), inherit.aes = F)
+
+ace_DOL_plot <- ggplot(pH_redox, aes(x = DOL, y = acetate, color = Subject)) +
+  geom_point() +
+  geom_line(alpha = 0.4) +
+  labs(x = "Age (days)", y = "Acetate concentration (mM)", color = "Participant") +
+  geom_textbox(data = data.frame(x = 60, y = 130, label = "Linear mixed model<br>acetate ~ bw + DOL + (1 | Subject)<br>DOL *p* = 0.029"),
+               aes(x, y, label = label), halign = 0.5, fill = NA, box.colour = NA,
+               box.padding = grid::unit(rep(0, 4), "pt"), width = unit(3, "inch"), inherit.aes = F)
+
+# Propionate and DOL / Wt
+pro_DOL_plot <- ggplot(pH_redox, aes(x = DOL, y = propionate, color = Subject)) +
+  geom_point() +
+  geom_line(alpha = 0.4) +
+  labs(x = "Age (days)", y = "Propionate concentration (mM)", color = "Participant") +
+  geom_textbox(data = data.frame(x = 58, y = 20, label = "Linear mixed model<br>propionate ~ bw + DOL + (1 | Subject)<br>DOL *p* = 0.031"),
+               aes(x, y, label = label), halign = 0.5, fill = NA, box.colour = NA,
+               box.padding = grid::unit(rep(0, 4), "pt"), width = unit(3, "inch"), inherit.aes = F)
+
+pro_Wt_plot <- ggplot(pH_redox, aes(x = Wt, y = propionate, color = Subject)) +
+  geom_point() +
+  geom_line(alpha = 0.4) +
+  labs(x = "Weight (g)", y = "Propionate concentration (mM)", color = "Participant") +
+  geom_textbox(data = data.frame(x = 1200, y = 20, label = "Linear mixed model<br>propionate ~ bw + Wt + (1 | Subject)<br>Wt *p* = 0.00047"),
+               aes(x, y, label = label), halign = 0.5, fill = NA, box.colour = NA,
+               box.padding = grid::unit(rep(0, 4), "pt"), width = unit(3, "inch"), inherit.aes = F)
   
-
-```
-
-## Assess relationship between SCFA and pH/redox
-```{r}
 
 ```
 
@@ -263,25 +313,48 @@ ace_pH_plot <- ggplot(pH_redox, aes(x = pH, y = acetate, color = Subject)) +
 
 ```
 
+
+# Can we predict feed intolerance with random forest?
+```{r}
+
+```
+
+
 # Patch figures
 ```{r}
 # Fig. 1 - birth stats and pH/redox
-fig1 <- plot_grid(pH_BGA_plot + theme(legend.position = "none"),
-                  pH_bw_plot + theme(legend.position = "none"),
+fig1 <- plot_grid(pH_bw_plot + theme(legend.position = "none"),
+                  redox_bw_plot + theme(legend.position = "none"),
+                  pH_BGA_plot + theme(legend.position = "none"),
                   redox_BGA_plot + theme(legend.position = "none"),
-                  redox_bw_plot+ theme(legend.position = "none"),
+                  pH_DOL_plot + theme(legend.position = "none"),
+                  redox_DOL_plot + theme(legend.position = "none"),
                   ncol = 2,
-                  labels = c("A", "B", "C", "D"), label_fontface = "plain") %>%
+                  labels = c("A", "B", "C", "D", "E", "F"), label_fontface = "plain") %>%
   plot_grid(., get_legend(pH_BGA_plot), rel_widths = c(8,1))
+#ggsave("plots/fig1.png", fig1, height = 10, width = 10)
 
-# Fig. 2 - other variables pH and redox
-redox_DOL_plot
-pH_DOL_plot
+# Fig. 2 - SCFA
+fig2 <- plot_grid(total_pH_plot + theme(legend.position = "none"),
+                  ace_pH_plot + theme(legend.position = "none"),
+                  total_DOL_plot + theme(legend.position = "none"),
+                  ace_DOL_plot + theme(legend.position = "none"),
+                  pro_DOL_plot + theme(legend.position = "none"),
+                  pro_Wt_plot + theme(legend.position = "none"),
+                  ncol = 2,
+                  labels = c("A", "B", "C", "D", "E", "F"), label_fontface = "plain") %>%
+  plot_grid(., get_legend(total_pH_plot), rel_widths = c(8,1))
+#ggsave("plots/fig2.png", fig2, height = 10, width = 10)
+
+# Fig. 3 16S
+
+# Fig. 4 random forest?
 
 # Fig. S1 
 BGA_bw_plot
 pH_redox_plot
-ace_pH_plot
+
+
+
 
 ```
-
