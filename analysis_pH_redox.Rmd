@@ -63,6 +63,15 @@ ps_filt <- ps %>%
   filter_taxa(function(x) sum(x > 3) > 0.1*length(x), TRUE)
 # Reduces to 23 taxa (wow!)
 
+samdf <- as.data.frame(as.matrix(ps@sam_data)) %>%
+  mutate(DOL = as.numeric(DOL),
+         BGA = as.numeric(BGA),
+         pH = as.numeric(pH),
+         redox = as.numeric(redox),
+         Wt = as.numeric(Wt),
+         cga = as.numeric (cga),
+         bw = as.numeric(bw))
+
 ```
 
 # pH and redox
@@ -351,6 +360,25 @@ diversity_DOL_plot <- ggplot(diversity, aes(x = DOL, y = value,
                box.padding = grid::unit(rep(0, 4), "pt"), width = unit(3, "inch"), inherit.aes = F)
 
 # NMDS
+bray <- distance(ps, method = "bray") %>% as.matrix()
+
+## Test effect of participant
+adonis2(formula = bray ~ Subject_ID, data = samdf,
+        permutations=9999, method = "bray")
+# participant p < 0.0001
+
+ord <- ordinate(ps, method="NMDS", distance="bray")
+
+ord_plot <- plot_ordination(ps, ord, color="Subject_ID", title="Bray-Curtis NMDS") +
+  stat_ellipse() +
+  labs(color = "Participant")
+
+##
+adonis2(formula = bray ~ bw + DOL + pH + redox + Subject_ID, data = samdf,
+        permutations=9999, method = "bray", na.action = na.omit)
+
+ord_plot <- plot_ordination(ps, ord, color = "bw", title="Bray-Curtis NMDS") +
+  facet_wrap(~Subject_ID)
 
 
 ```
