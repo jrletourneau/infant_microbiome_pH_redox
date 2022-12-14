@@ -301,6 +301,54 @@ pro_Wt_plot <- ggplot(pH_redox, aes(x = Wt, y = propionate, color = Subject)) +
 ## Analyze 16S data in context of clinical data
 ```{r}
 # Diversity
+diversity <- ps %>%
+  estimate_richness(split = TRUE, measures = c("Shannon", "Observed")) %>%
+  cbind(ps@sam_data) %>%
+  gather(key = measure, value = value, c("Shannon", "Observed"))
+
+diversity_summary <- diversity %>%
+  group_by(Subject_ID, bw, BGA, measure) %>%
+  summarize(mean = mean(value, na.rm = T),
+            se = sd(value, na.rm = T)/sqrt(length(which(!is.na(value)))))
+
+## lmer
+diversity %>%
+  filter(measure == "Shannon") %>%
+  lmer(value ~ bw + DOL + (1 | Subject_ID), data = .) %>%
+  summary()
+# Shannon bw = 0.61, BGA = 0.23
+# Observed bw = 0.75, BGA = 0.50
+# Shannon bw + DOL p = 9.06e-06
+# Observed bw + DOL p = 0.025
+
+## Diversity plot
+diversity_bw_plot <- ggplot(diversity, aes(x = bw, y = value, color = Subject_ID)) +
+  geom_point() +
+  geom_errorbar(data = diversity_summary, aes(x = bw, ymin = mean, ymax = mean, color = Subject_ID),
+                width = 40, inherit.aes = F) +
+  geom_errorbar(data = diversity_summary, aes(x = bw, ymin = mean - se,
+                                             ymax = mean + se, color = Subject_ID),
+                width = 20, inherit.aes = F) +
+  facet_wrap(~measure, scales = "free_y") +
+  labs(x = "Birth weight (g)", y = "Alpha diversity", color = "Participant") +
+  geom_textbox(data = data.frame(x = c(1100, 1200), y = c(23, 0.55),
+                                 measure = c("Observed", "Shannon"),
+                                 label = c("Linear mixed model<br>observed ~ bw + (1 | Subject)<br>bw *p* = 0.75", "Linear mixed model<br>Shannon ~ bw + (1 | Subject)<br>bw *p* = 0.61")),
+               aes(x, y, label = label), halign = 0.5, fill = NA, box.colour = NA,
+               box.padding = grid::unit(rep(0, 4), "pt"), width = unit(3, "inch"), inherit.aes = F)
+  
+
+diversity_DOL_plot <- ggplot(diversity, aes(x = DOL, y = value,
+                                            color = Subject_ID, group = Subject_ID)) +
+  geom_point() +
+  geom_line(alpha = 0.4) +
+  facet_wrap(~measure, scales = "free_y") +
+  labs(x = "Age (days)", y = "Alpha diversity", color = "Participant") +
+  geom_textbox(data = data.frame(x = c(50, 60), y = c(23, 0.15),
+                                 measure = c("Observed", "Shannon"),
+                                 label = c("Linear mixed model<br>observed ~ bw + DOL + (1 | Subject)<br>DOL *p* = 0.025", "Linear mixed model<br>Shannon ~ bw + DOL + (1 | Subject)<br>DOL *p* = 9.1 x 10<sup>-6</sup>")),
+               aes(x, y, label = label), halign = 0.5, fill = NA, box.colour = NA,
+               box.padding = grid::unit(rep(0, 4), "pt"), width = unit(3, "inch"), inherit.aes = F)
 
 # NMDS
 
@@ -350,9 +398,14 @@ fig2 <- plot_grid(total_pH_plot + theme(legend.position = "none"),
 
 # Fig. 4 random forest?
 
+
 # Fig. S1 
 BGA_bw_plot
 pH_redox_plot
+
+# Fig. S2
+diversity_bw_plot
+diversity_DOL_plot
 
 
 
