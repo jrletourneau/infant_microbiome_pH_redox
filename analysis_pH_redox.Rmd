@@ -340,7 +340,7 @@ diversity_bw_plot <- ggplot(diversity, aes(x = bw, y = value, color = Subject_ID
                 width = 20, inherit.aes = F) +
   facet_wrap(~measure, scales = "free_y") +
   labs(x = "Birth weight (g)", y = "Alpha diversity", color = "Participant") +
-  geom_textbox(data = data.frame(x = c(1100, 1200), y = c(23, 0.55),
+  geom_textbox(data = data.frame(x = c(1100, 1220), y = c(23, 0.5),
                                  measure = c("Observed", "Shannon"),
                                  label = c("Linear mixed model<br>observed ~ bw + (1 | Subject)<br>bw *p* = 0.75", "Linear mixed model<br>Shannon ~ bw + (1 | Subject)<br>bw *p* = 0.61")),
                aes(x, y, label = label), halign = 0.5, fill = NA, box.colour = NA,
@@ -353,7 +353,7 @@ diversity_DOL_plot <- ggplot(diversity, aes(x = DOL, y = value,
   geom_line(alpha = 0.4) +
   facet_wrap(~measure, scales = "free_y") +
   labs(x = "Age (days)", y = "Alpha diversity", color = "Participant") +
-  geom_textbox(data = data.frame(x = c(50, 60), y = c(23, 0.15),
+  geom_textbox(data = data.frame(x = c(50, 60), y = c(23, 0.11),
                                  measure = c("Observed", "Shannon"),
                                  label = c("Linear mixed model<br>observed ~ bw + DOL + (1 | Subject)<br>DOL *p* = 0.025", "Linear mixed model<br>Shannon ~ bw + DOL + (1 | Subject)<br>DOL *p* = 9.1 x 10<sup>-6</sup>")),
                aes(x, y, label = label), halign = 0.5, fill = NA, box.colour = NA,
@@ -367,34 +367,188 @@ adonis2(formula = bray ~ Subject_ID, data = samdf,
         permutations=9999, method = "bray")
 # participant p < 0.0001
 
-ord <- ordinate(ps, method="NMDS", distance="bray")
-
-ord_plot <- plot_ordination(ps, ord, color="Subject_ID", title="Bray-Curtis NMDS") +
-  stat_ellipse() +
-  labs(color = "Participant")
-
-##
+# More complicated model
 adonis2(formula = bray ~ bw + DOL + pH + redox + Subject_ID, data = samdf,
         permutations=9999, method = "bray", na.action = na.omit)
+#            Df SumOfSqs      R2       F Pr(>F)    
+# bw          1   2.6453 0.10374 17.6512 0.0001 ***
+# DOL         1   2.0974 0.08225 13.9951 0.0001 ***
+# pH          1   0.4445 0.01743  2.9659 0.0085 ** 
+# redox       1   0.4637 0.01818  3.0942 0.0054 ** 
+# Subject_ID  9  10.5577 0.41403  7.8276 0.0001 ***
 
-ord_plot <- plot_ordination(ps, ord, color = "bw", title="Bray-Curtis NMDS") +
-  facet_wrap(~Subject_ID)
+ord <- ordinate(ps, method="NMDS", distance="bray")
+
+ord_plot <- plot_ordination(ps, ord, color="Subject_ID", title=NULL) +
+  stat_ellipse(linetype = "dashed") +
+  labs(color = "Participant") +
+   geom_textbox(data = data.frame(x = 3, y = 1.25,
+                                  label = paste("PERMANOVA",
+                                                "bw R<sup>2</sup> = 0.10, *p* < 0.0001",
+                                                "DOL R<sup>2</sup> = 0.082, *p* < 0.0001",
+                                                "pH R<sup>2</sup> = 0.017, *p* = 0.0085",
+                                                "redox R<sup>2</sup> = 0.018, *p* = 0.0054",
+                                                "participant R<sup>2</sup> = 0.41, *p* < 0.0001",
+                                                sep = "<br>")),
+               aes(x, y, label = label), halign = 0.5, fill = NA, box.colour = NA,
+               box.padding = grid::unit(rep(0, 4), "pt"), width = unit(3, "inch"), inherit.aes = F)
 
 
 ```
 
-## Assess relationship between 16S and pH/redox
+## Look at specific taxa with ALDEx2
 ```{r}
+# ALDEx2 GLM incorporating multiple variables
+## Using ps_filt here!
+otu_flip <- as.data.frame(t(ps_filt@otu_table))
+mm <- samdf[rownames(as.data.frame(as.matrix(ps_filt@sam_data))),] %>%
+  model.matrix(~ bw + DOL + pH + redox + Subject_ID, data = .)
 
+# ALDEx2 correlation (not incorporating participant...)
+clr <- aldex.clr(otu_flip[,colnames(otu_flip) %in% rownames(mm)], mm, mc.samples = 128, denom ="all")
+glm.test <- aldex.glm(clr) # slow
+#write.csv(glm.test, "plots/aldex2_glm_bw_DOL_pH_redox_participant.csv")
+# bw seq_1 p.BH = 0.0067, seq_4 = 0.033
+# DOL seq_1 p.BH = 0.00028
+# none p < 0.05 for pH or redox
+
+melty <- ps_filt %>%
+  microbiome::transform(transform = "compositional") %>%
+  psmelt() %>%
+  mutate(OTU = sub("seq_", "ASV ", OTU)) %>%
+  mutate(binom = case_when(is.na(Genus) ~ paste0(Family, " family (", OTU, ")"),
+                           !is.na(Genus) & is.na(Species) ~
+                             paste0("*", Genus, " sp.* (", OTU, ")"),
+                           !is.na(Species) ~
+                             paste0("*", Genus, " ", Species, "* (", OTU, ")"))) %>%
+  filter(OTU %in% c("ASV 1", "ASV 4")) %>%
+  mutate(binom = factor(binom, levels = c("*Staphylococcus sp.* (ASV 1)",
+                                           "*Escherichia-Shigella sp.* (ASV 4)")))
+
+melty_summary <- melty %>%
+  group_by(OTU, binom, Subject_ID, bw) %>%
+  summarize(mean = mean(Abundance), se = sd(Abundance)/sqrt(length(Abundance)))
+
+tax_bw_plot <- melty %>%
+  filter(OTU %in% c("ASV 1", "ASV 4")) %>%
+  ggplot(aes(x = bw, y = Abundance, color = Subject_ID)) +
+  geom_point() +
+  geom_errorbar(data = filter(melty_summary, OTU %in% c("ASV 1", "ASV 4")),
+                aes(x = bw, ymin = mean, ymax = mean, color = Subject_ID),
+                width = 40, inherit.aes = F) +
+  geom_errorbar(data = filter(melty_summary, OTU %in% c("ASV 1", "ASV 4")),
+                aes(x = bw, ymin = mean - se, ymax = mean + se, color = Subject_ID),
+                width = 20, inherit.aes = F) +
+  labs(x = "Birth weight (g)", y = "Relative abundance", color = "Participant") +
+  facet_wrap(~binom, scales = "free_y", nrow = 2) +
+  theme(strip.text = element_markdown())
+
+tax_DOL_plot <- melty %>%
+  filter(OTU %in% c("ASV 1")) %>%
+  ggplot(aes(x = DOL, y = Abundance, color = Subject_ID)) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Age (days)", y = "Relative abundance") +
+  facet_wrap(~binom, scales = "free_y") +
+  theme(strip.text = element_markdown())
+
+
+# Also do for genus/family
+ps_genus_filt <- ps %>%
+  tax_glom(taxrank = "Genus") %>%
+  filter_taxa(function(x) sum(x > 3) > 0.1*length(x), TRUE)
+# 16 genera
+
+otu_flip_gen <- as.data.frame(t(ps_genus_filt@otu_table))
+mm_gen <- samdf[rownames(as.data.frame(as.matrix(ps_genus_filt@sam_data))),] %>%
+  model.matrix(~ bw + DOL + pH + redox + Subject_ID, data = .)
+
+# ALDEx2 correlation (not incorporating participant...)
+clr_gen <- aldex.clr(otu_flip_gen[,colnames(otu_flip_gen) %in% rownames(mm_gen)],
+                     mm_gen, mc.samples = 128, denom ="all")
+glm.test_gen <- aldex.glm(clr_gen) # slow
+# bw ASV 1 Staphylococcus (p = 0.0015), ASV 8 Clostridium sensu stricto 1 (p = 0.019),
+## ASV 4 Escherichia-Shigella (p = 0.023)
+# DOL ASV 1 Staphylococcus (p = 6.0e-5)
+# none for pH/redox
+
+## Family
+ps_fam_filt <- ps %>%
+  tax_glom(taxrank = "Family") %>%
+  filter_taxa(function(x) sum(x > 3) > 0.1*length(x), TRUE)
+# 12 families
+
+otu_flip_fam <- as.data.frame(t(ps_fam_filt@otu_table))
+mm_fam <- samdf[rownames(as.data.frame(as.matrix(ps_fam_filt@sam_data))),] %>%
+  model.matrix(~ bw + DOL + pH + redox + Subject_ID, data = .)
+
+# ALDEx2 correlation (not incorporating participant...)
+clr_fam <- aldex.clr(otu_flip_fam[,colnames(otu_flip_fam) %in% rownames(mm_fam)],
+                     mm_fam, mc.samples = 128, denom ="all")
+glm.test_fam <- aldex.glm(clr_fam) # slow
+# bw ASV 1 Staphylococcaceae (p = 0.00091), ASV 8 Clostridiaceae (p = 0.0093)
+# DOL ASV 1 Staphylococcaceae (p = 0.000034), ASV 3 Enterobacteriaceae (p = 0.0011)
+
+melty_fam <- ps_fam_filt %>%
+  microbiome::transform(transform = "clr") %>%
+  psmelt()
+
+fam_bw_plot <- melty_fam %>%
+  filter(OTU %in% c("seq_1", "seq_8")) %>%
+  ggplot(aes(x = bw, y = Abundance, color = Subject_ID)) +
+  geom_point() +
+  labs(x = "Birth weight (g)", y = "Relative abundance") +
+  facet_wrap(~Family, scales = "free_y")
+
+fam_DOL_plot <- melty_fam %>%
+  filter(OTU %in% c("seq_1", "seq_3")) %>%
+  ggplot(aes(x = DOL, y = Abundance, color = Subject_ID)) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Age (days)", y = "Relative abundance") +
+  facet_wrap(~Family, scales = "free_y")
 
 ```
 
 
-# Can we predict feed intolerance with random forest?
+# Can we predict pH / redox from 16S with random forest?
+# what about feedintol?
 ```{r}
+# lm
+ps_filt_clr <- ps_filt %>% # additional feature selection
+  microbiome::transform(transform = "clr")
+
+clr_spread <- cbind(ps_filt_clr@sam_data, ps_filt_clr@otu_table)
+
+# paste(colnames(melty_spread)[11:33], collapse = " + ")
+
+clr_spread %>%
+  lmer(redox ~ seq_1 + seq_2 + seq_3 + seq_4 + seq_5 + seq_6 + seq_7 + seq_8 + seq_9 + seq_10 +
+         seq_11 + seq_12 + seq_13 + seq_15 + seq_16 + seq_17 + seq_19 + seq_23 + seq_24 +
+         seq_25 + seq_26 + seq_30 + seq_33 + bw + DOL + (1 | Subject_ID), data = .) %>%
+  summary()
+# pH: none p < 0.05
+# redox: seq_2 p = 0.0368
+
+# seq_15
+
+
+
+# by family
+ps_fam_filt_clr <- ps_fam_filt %>%
+  microbiome::transform(transform = "clr")
+
+fam_clr_spread <- cbind(ps_fam_filt_clr@sam_data, ps_fam_filt_clr@otu_table)
+
+#paste(colnames(fam_clr_spread)[11:22], collapse = " + ")
+
+fam_clr_spread %>%
+  lmer(redox ~ seq_1 + seq_2 + seq_3 + seq_6 + seq_7 + seq_8 + seq_12 + seq_13 +
+         seq_15 + seq_17 + seq_20 + seq_26 + bw + DOL + (1 | Subject_ID), data = .) %>%
+  summary()
+
 
 ```
-
 
 # Patch figures
 ```{r}
@@ -423,17 +577,33 @@ fig2 <- plot_grid(total_pH_plot + theme(legend.position = "none"),
 #ggsave("plots/fig2.png", fig2, height = 10, width = 10)
 
 # Fig. 3 16S
+fig3 <- plot_grid(ord_plot + theme(legend.position = "none"),
+                       tax_DOL_plot + theme(legend.position = "none"), 
+                       ncol = 1, labels = c("A", "C"), label_fontface = "plain") %>%
+  plot_grid(., tax_bw_plot,
+            labels = c("", "B"), label_fontface = "plain")
+#ggsave("plots/fig3.png", fig3, height = 8, width = 10)
 
 # Fig. 4 random forest?
 
 
 # Fig. S1 
-BGA_bw_plot
-pH_redox_plot
+figS1 <- plot_grid(BGA_bw_plot + theme(legend.position = "none"),
+                   pH_redox_plot  + theme(legend.position = "none"),
+                   get_legend(pH_redox_plot),
+                   nrow = 1, rel_widths = c(5,5,1),
+                   labels = c("A", "B", ""), label_fontface = "plain")
+#ggsave("plots/figS1.png", figS1, height = 4, width = 8)
 
 # Fig. S2
-diversity_bw_plot
-diversity_DOL_plot
+figS2 <- plot_grid(diversity_bw_plot + theme(legend.position = "none"),
+                   diversity_DOL_plot + theme(legend.position = "none"),
+                   nrow = 2, labels = c("A", "B"), label_fontface = "plain") %>%
+  plot_grid(., get_legend(diversity_DOL_plot),
+            nrow = 1, rel_widths = c(10, 1),
+            labels = c("", ""), label_fontface = "plain")
+#ggsave("plots/figS2.png", figS2, height = 8, width = 10)
+
 
 
 
