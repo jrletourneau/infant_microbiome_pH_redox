@@ -396,7 +396,7 @@ ord_plot <- plot_ordination(ps, ord, color="Subject_ID", title=NULL) +
 
 ```
 
-## Look at specific taxa with ALDEx2
+## ALDEx2 - Look at specific taxa with ALDEx2
 ```{r}
 # ALDEx2 GLM incorporating multiple variables
 ## Using ps_filt here!
