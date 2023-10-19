@@ -33,7 +33,9 @@ set.seed(123)
 ```{r}
 # pH and redox with clinical data
 ## See data/variable_descriptions_for_fecal_pH_final.xlsx for explanations of variables
-pH_redox <- read.csv("data/fecal_pH_final.csv")
+pH_redox <- read.csv("data/fecal_pH_final.csv") %>%
+  mutate(postnatalabx = factor(postnatalabx, levels = c("None", "48 hr", ">5 d")))
+  
 
 # SCFA data by GC
 ## Isobutyrate, isovalerate, and valerate were not detected for any samples
@@ -50,7 +52,7 @@ pH_redox <- pH_redox %>%
 
 ```
 
-## 16S
+## Load 16S
 ```{r}
 # Load phyloseq object, omitting samples with < 5000 reads
 ## This version used to calculate diversity
@@ -80,7 +82,7 @@ samdf <- as.data.frame(as.matrix(ps@sam_data)) %>%
 # Summarize pH and redox within infants
 ## Need to account for NA values in some cases
 pH_redox_summary <- pH_redox %>%
-  group_by(Subject, BGA, bw, matabx) %>%
+  group_by(Subject, BGA, bw, matabx, postnatalabx) %>%
   summarize(mean_pH = mean(pH, na.rm = T),
             se_pH = sd(pH, na.rm = T)/sqrt(length(which(!is.na(pH)))),
             mean_redox = mean(redox, na.rm = T),
@@ -164,6 +166,11 @@ BGA_bw_plot <- ggplot(pH_redox_summary, aes(x = BGA, y = bw, color = Subject)) +
   geom_textbox(data = data.frame(x=32.5, y = 900, label = "Spearman's &rho; = 0.71<br>*p* = 0.013"),
                aes(x, y, label = label), halign = 0.5, fill = NA, box.colour = NA,
                box.padding = grid::unit(rep(0, 4), "pt"), inherit.aes = F)
+
+DOL_Wt_plot <- ggplot(pH_redox, aes(x = DOL, y = Wt, color = Subject)) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Age (days)", y = "Weight (g)", color = "Participant")
 
 # pH and redox plot
 pH_redox %>%
@@ -510,9 +517,55 @@ fam_DOL_plot <- melty_fam %>%
 
 ```
 
+# Antibiotics
+```{r}
+
+pH_redox %>%
+  mutate(postnatalabx = factor(postnatalabx, levels = c("None", "48 hr", ">5 d"))) %>%
+  lmer(redox ~ bw + postnatalabx + (1 | Subject), data  = .) %>%
+  summary()
+
+# pH
+# bw               -0.0008606  0.0003174 73.0000000  -2.711  0.00835 ** 
+# postnatalabx48hr  0.7136952  0.1529320 73.0000000   4.667 1.35e-05 ***
+# postnatalabx>5d   1.0187043  0.1962401 73.0000000   5.191 1.81e-06 ***
+
+# redox
+# bw                  0.3011     0.1393    7.9483   2.161   0.0629 .
+# postnatalabx48hr  120.3983    72.7298    6.1631   1.655   0.1476  
+# postnatalabx>5d   140.5083    93.4952    5.6541   1.503   0.1865  
+
+abx_summary <- pH_redox_summary %>%
+  group_by(postnatalabx) %>%
+  summarize(mean_pH2 = mean(mean_pH), se_pH2 = sd(mean_pH)/sqrt(length(mean_pH)),
+            mean_redox2 = mean(mean_redox), se_redox2 = sd(mean_redox)/sqrt(length(mean_redox))) %>%
+  mutate(postnatalabx = factor(postnatalabx, levels = c("None", "48 hr", ">5 d")))
+
+abx_pH_plot <- ggplot(pH_redox, aes(x = postnatalabx, y = pH, color = Subject)) +
+  geom_point(position = position_jitter(width = 0.05, height = 0)) +
+  geom_errorbar(data = abx_summary, aes(x = postnatalabx, ymin = mean_pH2, ymax = mean_pH2),
+                width = 0.5, color = "red", inherit.aes = F) +
+  geom_errorbar(data = abx_summary, aes(x = postnatalabx, ymin = mean_pH2 - se_pH2,
+                                             ymax = mean_pH2 + se_pH2),
+                width = 0.25, inherit.aes = F) +
+  labs(x = "Duration of postnatal antibiotics", y = "Fecal pH", color = "Participant") +
+  annotate(geom = "text", x = c(2,3), y = c(7.85, 7.85), label = c("***", "***"), size = 10)
+
+abx_redox_plot <- ggplot(pH_redox, aes(x = postnatalabx, y = redox, color = Subject)) +
+  geom_point(position = position_jitter(width = 0.05, height = 0)) +
+  geom_errorbar(data = abx_summary, aes(x = postnatalabx, ymin = mean_redox2, ymax = mean_redox2),
+                width = 0.5, color = "red", inherit.aes = F) +
+  geom_errorbar(data = abx_summary, aes(x = postnatalabx, ymin = mean_redox2 - se_redox2,
+                                             ymax = mean_redox2 + se_redox2),
+                width = 0.25, inherit.aes = F) +
+  labs(x = "Duration of postnatal antibiotics", y = "Fecal redox potential (mV)",
+       color = "Participant")
+
+```
+
 
 # Can we predict pH / redox from 16S with random forest?
-# what about feedintol?
+## what about feedintol?
 ```{r}
 # lm
 ps_filt_clr <- ps_filt %>% # additional feature selection
@@ -579,10 +632,15 @@ fig2 <- plot_grid(total_pH_plot + theme(legend.position = "none"),
 # Fig. 3 16S
 fig3 <- plot_grid(ord_plot + theme(legend.position = "none"),
                        tax_DOL_plot + theme(legend.position = "none"), 
-                       ncol = 1, labels = c("A", "C"), label_fontface = "plain") %>%
-  plot_grid(., tax_bw_plot,
-            labels = c("", "B"), label_fontface = "plain")
-#ggsave("plots/fig3.png", fig3, height = 8, width = 10)
+                       ncol = 1, labels = c("B", "D"), label_fontface = "plain") %>%
+  plot_grid(., tax_bw_plot + theme(legend.position = "none"),
+            labels = c("", "C"), label_fontface = "plain") %>%
+  plot_grid(diversity_DOL_plot + theme(legend.position = "none"), .,
+            nrow = 2, rel_heights = c(0.4, 0.6),
+            labels = c("A", ""), label_fontface = "plain") %>%
+  plot_grid(., get_legend(diversity_bw_plot),
+            nrow = 1, rel_widths = c(10,1))
+ggsave("plots/fig3.png", fig3, height = 10, width = 10.5)
 
 # Fig. 4 random forest?
 
@@ -596,16 +654,19 @@ figS1 <- plot_grid(BGA_bw_plot + theme(legend.position = "none"),
 #ggsave("plots/figS1.png", figS1, height = 4, width = 8)
 
 # Fig. S2
-figS2 <- plot_grid(diversity_bw_plot + theme(legend.position = "none"),
-                   diversity_DOL_plot + theme(legend.position = "none"),
-                   nrow = 2, labels = c("A", "B"), label_fontface = "plain") %>%
-  plot_grid(., get_legend(diversity_DOL_plot),
-            nrow = 1, rel_widths = c(10, 1),
-            labels = c("", ""), label_fontface = "plain")
-#ggsave("plots/figS2.png", figS2, height = 8, width = 10)
+figS2 <- plot_grid(diversity_bw_plot,
+                   nrow = 1, labels = c(""), label_fontface = "plain")
+#ggsave("plots/figS2.png", figS2, height = 4, width = 10)
 
 
+# New Abx figure
+fig_abx <- plot_grid(abx_pH_plot + theme(legend.position = "none"),
+                     abx_redox_plot + theme(legend.position = "none"),
+                     get_legend(abx_redox_plot),
+                     nrow = 1, rel_widths = c(5, 5, 1),
+                     labels = c("A", "B", ""), label_fontface = "plain")
 
+#ggsave("plots/fig_abx.png", fig_abx, height = 4, width = 8)
 
 
 ```
