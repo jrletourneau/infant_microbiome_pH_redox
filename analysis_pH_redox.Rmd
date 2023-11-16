@@ -12,6 +12,7 @@ library(ggtext)
 library(ggsignif)
 library(cowplot)
 library(patchwork)
+library(pals)
 
 # Stats
 library(phyloseq)
@@ -356,10 +357,21 @@ ggsave("plots/fig_s3.png", scfa_supp, height = 10, width = 6)
 # 16S
 ## Analyze 16S data in context of clinical data
 ```{r}
+
+# Prep scfa and matabx vars to add into tests
+
+scfa_spread <- scfa_gather %>%
+  mutate(conc = case_when(is.na(conc) ~ 0, T ~ conc)) %>%
+  filter(scfa != "total") %>%
+  dplyr::select(Sample, postnatalabx, scfa, conc) %>%
+  spread(key = scfa, value = conc)
+
+
 # Diversity
 diversity <- ps %>%
   estimate_richness(split = TRUE, measures = c("Shannon", "Observed")) %>%
   cbind(ps@sam_data) %>%
+  left_join(scfa_spread) %>%
   gather(key = measure, value = value, c("Shannon", "Observed"))
 
 diversity_summary <- diversity %>%
@@ -376,6 +388,15 @@ diversity %>%
 # Observed bw = 0.75, BGA = 0.50
 # Shannon bw + DOL p = 9.06e-06
 # Observed bw + DOL p = 0.025
+
+diversity %>%
+  filter(measure == "Observed") %>%
+  lmer(value ~ bw + DOL + pH + redox + postnatalabx + acetate + butyrate + propionate + (1 | Subject_ID), data = .) %>%
+  summary()
+# Shannon
+## postnatalabx48hr -0.8053307  0.2943897  7.6788534  -2.736 0.026628 *  
+## postnatalabx>5d  -1.2367348  0.3870977  7.3246350  -3.195 0.014279 *
+# Observed - NS
 
 ## Diversity plot
 diversity_bw_plot <- ggplot(diversity, aes(x = bw, y = value, color = Subject_ID)) +
@@ -400,11 +421,32 @@ diversity_DOL_plot <- ggplot(diversity, aes(x = DOL, y = value,
   geom_line(alpha = 0.4) +
   facet_wrap(~measure, scales = "free_y") +
   labs(x = "Age (days)", y = "Alpha diversity", color = "Participant") +
-  geom_textbox(data = data.frame(x = c(50, 60), y = c(23, 0.11),
+  geom_textbox(data = data.frame(x = c(50, 55), y = c(23, 0.11),
                                  measure = c("Observed", "Shannon"),
                                  label = c("Linear mixed model<br>observed ~ bw + DOL + (1 | Subject)<br>DOL *p* = 0.025", "Linear mixed model<br>Shannon ~ bw + DOL + (1 | Subject)<br>DOL *p* = 9.1 x 10<sup>-6</sup>")),
                aes(x, y, label = label), halign = 0.5, fill = NA, box.colour = NA,
                box.padding = grid::unit(rep(0, 4), "pt"), width = unit(3, "inch"), inherit.aes = F)
+
+diversity_abx_summary <- diversity %>%
+  dplyr::select(postnatalabx, measure, value) %>%
+  group_by(postnatalabx, measure) %>%
+  summarize(mean = mean(value), se = sd(value)/sqrt(length(value)))
+
+div_abx_plot <- ggplot(diversity, aes(x = postnatalabx, y = value, color = Subject_ID)) +
+  geom_point(position = position_jitter(width = 0.05, height = 0)) +
+  geom_errorbar(data = diversity_abx_summary,
+                aes(x = postnatalabx, ymin = mean, ymax = mean),
+                width = 0.5, color = "red", inherit.aes = F) +
+  geom_errorbar(data = diversity_abx_summary, aes(x = postnatalabx, ymin = mean - se,
+                                             ymax = mean + se),
+                width = 0.25, inherit.aes = F) +
+  geom_text(data = data.frame(measure = "Shannon", x = c("48 hr", ">5 d"),
+                              y = c(2, 1.3), label = c("*", "*")),
+            mapping = aes(x = x, y = y, label = label), size = 10, inherit.aes = F) +
+  labs(x = "Duration of postnatal antibiotics",
+       y = "Alpha diversity", color = "Participant") +
+  facet_wrap(~measure, scales = "free_y")
+
 
 # NMDS
 bray <- distance(ps, method = "bray") %>% as.matrix()
@@ -455,10 +497,9 @@ mm <- samdf[rownames(as.data.frame(as.matrix(ps_filt@sam_data))),] %>%
 clr <- aldex.clr(otu_flip[,colnames(otu_flip) %in% rownames(mm)], mm, mc.samples = 128, denom ="all")
 glm.test <- aldex.glm(clr) # slow
 #write.csv(glm.test, "plots/aldex2_glm_bw_DOL_pH_redox_participant.csv")
-# bw seq_1 p.BH = 0.00030; seq_4 = 0.0012; seq_10 = 0.0053; seq_11 = 0.0072
-# DOL seq_1 p.BH = 0.000018; seq_9 = 0.025; seq_2 = 0.030; seq_15 = 0.048
-# redox seq_2 p.BH = 0.015
-# none p < 0.05 for pH
+# bw seq_1 p.BH = 0.006447178, seq_4 p.BH = 0.024139623;
+# DOL seq_1 p.BH = 0.0003955539;
+# pH and redox none
 
 melty <- ps_filt %>%
   microbiome::transform(transform = "compositional") %>%
@@ -469,23 +510,17 @@ melty <- ps_filt %>%
                              paste0("*", Genus, " sp.* (", OTU, ")"),
                            !is.na(Species) ~
                              paste0("*", Genus, " ", Species, "* (", OTU, ")"))) %>%
-  filter(OTU %in% c("ASV 1", "ASV 2", "ASV 4", "ASV 9",
-                    "ASV 10", "ASV 11", "ASV 15")) %>%
+  filter(OTU %in% c("ASV 1", "ASV 4")) %>%
   mutate(binom = factor(binom,
                         levels = c("*Staphylococcus sp.* (ASV 1)",
-                                   "*Enterococcus sp.* (ASV 2)",
-                                   "*Escherichia-Shigella sp.* (ASV 4)",
-                                   "*Raoultella sp.* (ASV 9)",
-                                   "*Clostridium sensu stricto 1 paraputrificum* (ASV 10)",
-                                   "Enterobacteriaceae family (ASV 11)",
-                                   "*Corynebacterium sp.* (ASV 15)")))
+                                   "*Escherichia-Shigella sp.* (ASV 4)")))
 
 melty_summary <- melty %>%
   group_by(OTU, binom, Subject_ID, bw) %>%
   summarize(mean = mean(Abundance), se = sd(Abundance)/sqrt(length(Abundance)))
 
 tax_bw_plot <- melty %>%
-  filter(OTU %in% c("ASV 1", "ASV 4", "ASV 10", "ASV 11")) %>%
+  filter(OTU %in% c("ASV 1", "ASV 4")) %>%
   ggplot(aes(x = bw, y = Abundance, color = Subject_ID)) +
   geom_point() +
   geom_errorbar(data = filter(melty_summary, OTU %in% c("ASV 1", "ASV 4",
@@ -497,17 +532,17 @@ tax_bw_plot <- melty %>%
                 aes(x = bw, ymin = mean - se, ymax = mean + se, color = Subject_ID),
                 width = 20, inherit.aes = F) +
   labs(x = "Birth weight (g)", y = "Relative abundance", color = "Participant") +
-  facet_wrap(~binom, scales = "free_y", nrow = 2) +
+  facet_wrap(~binom, scales = "free_y", nrow = 1) +
   theme(strip.text = element_markdown())
 
-tax_redox_plot <- melty %>%
-  filter(OTU %in% c("ASV 2")) %>%
-  ggplot(aes(x = redox, y = Abundance, color = Subject_ID)) +
+tax_DOL_plot <- melty %>%
+  filter(OTU %in% c("ASV 1")) %>%
+  ggplot(aes(x = DOL, y = Abundance, color = Subject_ID)) +
   geom_point() +
-  labs(x = "Redox potential (mV)", y = "Relative abundance") +
+  geom_line() +
+  labs(x = "Age (days)", y = "Relative abundance", color = "Participant") +
   facet_wrap(~binom, scales = "free_y") +
   theme(strip.text = element_markdown())
-
 
 
 
@@ -525,12 +560,7 @@ mm_gen <- samdf[rownames(as.data.frame(as.matrix(ps_genus_filt@sam_data))),] %>%
 clr_gen <- aldex.clr(otu_flip_gen[,colnames(otu_flip_gen) %in% rownames(mm_gen)],
                      mm_gen, mc.samples = 128, denom ="all")
 glm.test_gen <- aldex.glm(clr_gen) # slow
-# bw ASV 1 Staphylococcus (p = 0.00010), ASV 8 Clostridium sensu stricto 1 (p = 0.0013),
-## ASV 4 Escherichia-Shigella (p = 0.0032), & ASV 17 Streptococcus (p = 0.0084)
-# DOL ASV 1 Staphylococcus (p = 2.685465e-06), ASV 7 Lachnoclostridium (p = 0.031),
-## ASV 2 Enterococcus (p = 0.044), & ASV 9 Raoultella (p = 0.047)
-# none for pH
-# redox ASV 2 Enterococcus (p = 0.0077)
+
 
 ## Family
 ps_fam_filt <- ps %>%
@@ -546,12 +576,7 @@ mm_fam <- samdf[rownames(as.data.frame(as.matrix(ps_fam_filt@sam_data))),] %>%
 clr_fam <- aldex.clr(otu_flip_fam[,colnames(otu_flip_fam) %in% rownames(mm_fam)],
                      mm_fam, mc.samples = 128, denom ="all")
 glm.test_fam <- aldex.glm(clr_fam) # slow
-# bw ASV 1 Staphylococcaceae (p = 6.1e-05), ASV 8 Clostridiaceae (p = 0.0010),
-## ASV 17 Streptococcaceae (p = 0.0067)
-# DOL ASV 1 Staphylococcaceae (p = 1.8e-06), ASV 3 Enterobacteriaceae (p = 2.9e-05),
-## ASV 8 Clostridiaceae (p = 0.046)
-# None for pH
-## redox ASV 2 Enterococcaceae (p = 0.0097)
+
 
 melty_fam <- ps_fam_filt %>%
   microbiome::transform(transform = "clr") %>%
@@ -581,6 +606,92 @@ fam_redox_plot <- melty_fam %>%
   facet_wrap(~Family, scales = "free_y")
 
 ```
+
+## ALDEx2 - more complex model
+bw + DOL + pH + redox + postnatalabx + acetate + butyrate + propionate + Subject_ID
+```{r}
+# ALDEx2 GLM incorporating multiple variables
+## Using ps_filt here!
+otu_flip <- as.data.frame(t(ps_filt@otu_table))
+mm <- samdf[rownames(as.data.frame(as.matrix(ps_filt@sam_data))),] %>%
+  rownames_to_column("temp_col") %>%
+  left_join(scfa_spread) %>%
+  column_to_rownames("temp_col") %>%
+  model.matrix(~ bw + DOL + pH + redox + postnatalabx + acetate + butyrate + propionate + Subject_ID, data = .)
+
+# ALDEx2 correlation (not incorporating participant...)
+clr <- aldex.clr(otu_flip[,colnames(otu_flip) %in% rownames(mm)], mm, mc.samples = 128, denom ="all")
+glm.test2 <- aldex.glm(clr) # slow
+ #write.csv(glm.test2, "plots/aldex2_complicated_model.csv")
+# DOL: seq_1 p.BH = 0.001435765; propionate seq_12 p.BH = 0.01612447
+
+melty_vei <- ps_filt %>%
+  microbiome::transform(transform = "compositional") %>%
+  psmelt() %>%
+  mutate(OTU = sub("seq_", "ASV ", OTU)) %>%
+  mutate(binom = case_when(is.na(Genus) ~ paste0(Family, " family (", OTU, ")"),
+                           !is.na(Genus) & is.na(Species) ~
+                             paste0("*", Genus, " sp.* (", OTU, ")"),
+                           !is.na(Species) ~
+                             paste0("*", Genus, " ", Species, "* (", OTU, ")"))) %>%
+  filter(OTU %in% c("ASV 12")) %>%
+  mutate(binom = factor(binom,
+                        levels = c("*Veillonella sp.* (ASV 12)"))) %>%
+  left_join(scfa_spread, by = c("sample_Sample" = "Sample"))
+
+pro_vei_plot <- ggplot(melty_vei, aes(x = propionate, y = Abundance, color = Subject_ID)) +
+  geom_point() +
+  labs(x = "Propionate concentration (mM)", y = "Relative abundance", color = "Participant") +
+  facet_wrap(~binom, scales = "free_y") +
+  theme(strip.text = element_markdown())
+
+
+```
+
+
+## Bar plot
+```{r}
+# Let's do it at the genus level
+# Retain only genera that pass the sum(x > 3) > 0.1*length(x) filter, but include others in relative abundance calculation
+melty_all <- ps %>%
+  tax_glom(taxrank = "Genus") %>%
+  #filter_taxa(function(x) sum(x > 3) > 0.1*length(x), TRUE) %>%
+  microbiome::transform(transform = "compositional") %>%
+  psmelt() %>%
+  mutate(OTU = sub("seq_", "ASV ", OTU)) %>%
+  mutate(binom = paste0(Genus, " (", OTU, ")")) %>%
+  filter(OTU %in% c("ASV 1", "ASV 4", "ASV 2", "ASV 3", "ASV 5", "ASV 6",
+                    "ASV 8", "ASV 7", "ASV 9", "ASV 12", "ASV 20", "ASV 17",
+                    "ASV 13", "ASV 15", "ASV 30", "ASV 26"))
+
+genera <- unique(melty_all$Genus)
+
+average_abundance <- melty_all %>%
+  group_by(Subject_ID, Genus) %>%
+  summarize(Avg_Rel_Abundance = mean(Abundance)) %>%
+  ungroup() %>%
+  as.data.frame() %>%
+  spread(key = Genus, value = Avg_Rel_Abundance) %>%
+  mutate(Other = 1 - rowSums(.[,2:ncol(.)])) %>%
+  gather(key = Genus, value = Avg_Rel_Abundance, 2:ncol(.)) %>%
+  filter(Avg_Rel_Abundance > 0) %>%
+  mutate(Genus = factor(Genus, levels = c(genera, "Other")))
+
+bar_plot <- ggplot(average_abundance, aes(x = Subject_ID,
+                                          y = Avg_Rel_Abundance,
+                                          fill = Genus)) +
+  geom_bar(stat = "identity", color = "black") +
+  labs(x = "Subject", y = "Average relative abundance", fill = "Genus") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.text = element_markdown()) +
+  scale_fill_manual(values = setNames(rev(pals::polychrome(n = 17)),
+                                      levels(average_abundance$Genus)))
+
+#ggsave("plots/genus_bar_plot.png", bar_plot, height = 5, width = 7)
+
+
+```
+
 
 # Antibiotics
 ```{r}
@@ -735,43 +846,6 @@ ggsave("plots/fig_s_abx2.png", daysoffabx_plots, height = 8, width = 8)
 ```
 
 
-# Can we predict pH / redox from 16S with random forest?
-```{r}
-# lm
-ps_filt_clr <- ps_filt %>% # additional feature selection
-  microbiome::transform(transform = "clr")
-
-clr_spread <- cbind(ps_filt_clr@sam_data, ps_filt_clr@otu_table)
-
-# paste(colnames(melty_spread)[11:33], collapse = " + ")
-
-clr_spread %>%
-  lmer(redox ~ seq_1 + seq_2 + seq_3 + seq_4 + seq_5 + seq_6 + seq_7 + seq_8 + seq_9 + seq_10 +
-         seq_11 + seq_12 + seq_13 + seq_15 + seq_16 + seq_17 + seq_19 + seq_23 + seq_24 +
-         seq_25 + seq_26 + seq_30 + seq_33 + bw + DOL + (1 | Subject_ID), data = .) %>%
-  summary()
-
-
-# by family
-ps_fam_filt_clr <- ps_fam_filt %>%
-  microbiome::transform(transform = "clr")
-
-fam_clr_spread <- cbind(ps_fam_filt_clr@sam_data, ps_fam_filt_clr@otu_table)
-
-#paste(colnames(fam_clr_spread)[11:22], collapse = " + ")
-
-fam_clr_spread %>%
-  lmer(redox ~ seq_1 + seq_2 + seq_3 + seq_6 + seq_7 + seq_8 + seq_12 + seq_13 +
-         seq_15 + seq_17 + seq_20 + seq_26 + bw + DOL + (1 | Subject_ID), data = .) %>%
-  summary()
-
-
-```
-
-```{r}
-
-```
-
 
 # Patch figures
 ```{r}
@@ -800,19 +874,29 @@ fig2 <- plot_grid(total_pH_plot + theme(legend.position = "none"),
 #ggsave("plots/fig2.png", fig2, height = 10, width = 10)
 
 # Fig. 3 16S
-fig3 <- plot_grid(ord_plot + theme(legend.position = "none"),
-                       tax_DOL_plot + theme(legend.position = "none"), 
-                       ncol = 1, labels = c("B", "D"), label_fontface = "plain") %>%
-  plot_grid(., tax_bw_plot + theme(legend.position = "none"),
-            labels = c("", "C"), label_fontface = "plain") %>%
-  plot_grid(diversity_DOL_plot + theme(legend.position = "none"), .,
-            nrow = 2, rel_heights = c(0.4, 0.6),
-            labels = c("A", ""), label_fontface = "plain") %>%
-  plot_grid(., get_legend(diversity_bw_plot),
-            nrow = 1, rel_widths = c(10,1))
-ggsave("plots/fig3.png", fig3, height = 10, width = 10.5)
+fig_16s_comm <- plot_grid(diversity_DOL_plot + theme(legend.position = "none"),
+                          div_abx_plot + theme(legend.position = "none"),
+                          ord_plot,
+                          ncol = 1, labels = c("A", "B", "C"),
+                          label_fontface = "plain")
+ggsave("plots/fig_16S_comm.png", fig_16s_comm, height = 10.5, width = 8)
 
-# Fig. 4 random forest?
+fig_16s_taxa <- plot_grid(tax_DOL_plot + theme(legend.position = "none"),
+                          pro_vei_plot + theme(legend.position = "none"),
+                          ncol = 2, labels = c("C", "D"),
+                          label_fontface = "plain") %>%
+  plot_grid(tax_bw_plot + theme(legend.position = "none"), .,
+            ncol = 1, labels = c("B", ""),
+            label_fontface = "plain") %>%
+  plot_grid(., get_legend(diversity_bw_plot),
+            nrow = 1, rel_widths = c(10,1)) %>%
+  plot_grid(bar_plot, .,
+            ncol = 1, rel_heights = c(100,130),
+            labels = c("A", ""), label_fontface = "plain")
+  
+ggsave("plots/fig_16S_taxa.png", fig_16s_taxa, height = 12, width = 8)
+
+
 
 
 # Fig. S1 
